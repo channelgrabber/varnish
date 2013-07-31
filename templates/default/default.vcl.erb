@@ -1,5 +1,86 @@
-backend default {
-        .host = "<%= node['varnish']['backend_host'] %>";
-        .port = "<%= node['varnish']['backend_port'] %>";
+import std;
+
+probe backendCheck {
+    .request = "HEAD <%= node["varnish"]["backend_probe_url"] %> HTTP/1.0";
+    .timeout = 2s;
+    .interval = 2s;
+    .window = 10;
+    .threshold = 3;
+    .initial = 1;
 }
 
+<% node["varnish"]["backend"].each do |backend| %>
+    backend <%= backend["name"] %> {
+        .host = "<%= backend["host"] %>";
+        .port = "<%= backend["port"] %>";
+        .probe = backendCheck;
+    }
+<% end %>
+
+director backendRoundRobin round-robin {
+<% node["varnish"]["backend"].each do |backend| %>
+    { .backend = <%= backend["name"] %>; }
+<% end %>
+}
+
+probe frontendCheck {
+    .request = "HEAD <%= node["varnish"]["frontend_probe_url"] %> HTTP/1.0";
+    .timeout = 2s;
+    .interval = 2s;
+    .window = 10;
+    .threshold = 3;
+    .initial = 1;
+}
+
+<% node["varnish"]["frontend"].each do |frontend| %>
+    backend <%= frontend["name"] %> {
+        .host = "<%= frontend["host"] %>";
+        .port = "<%= frontend["port"] %>";
+        .probe = frontendCheck;
+    }
+<% end %>
+
+director frontRoundRobin round-robin {
+<% node["varnish"]["frontend"].each do |frontend| %>
+    { .backend = <%= frontend["name"] %>; }
+<% end %>
+}
+
+sub vcl_recv {
+    if (req.url ~ "\.(png|gif|jpg)$") {
+       remove req.http.Cookie;
+    }
+    if (req.http.host == "www.channelgrabber.com" ||
+        req.http.host == "channelgrabber.com" ) {
+        set req.backend = frontRoundRobin;
+    } else {
+        set req.backend = backendRoundRobin;
+    }
+}
+
+sub vcl_deliver {
+    if (obj.hits > 0) {
+       set resp.http.X-Cache = "HIT";
+    } else {
+        set resp.http.X-Cache = "MISS";
+    }
+}
+
+sub vcl_fetch {
+    if (req.url ~ "\.(png|gif|jpg)$") {
+       remove beresp.http.set-cookie;
+       set beresp.ttl = 1h;
+    }
+    if (beresp.status == 404) {
+        set beresp.http.Content-Type = "text/html; charset=utf-8";
+        set beresp.http.error404 = std.fileread("<%= node["varnish"]["error_page_dir"] %>/<%= node["varnish"]["404_page"] %>");
+        return(deliver);
+    }
+}
+
+sub vcl_error {
+    set obj.http.Content-Type = "text/html; charset=utf-8";
+    set obj.http.error50x = std.fileread("<%= node["varnish"]["error_page_dir"] %>/<%= node["varnish"]["error_page"] %>");
+    synthetic obj.http.error50x;
+    return(deliver);
+}
