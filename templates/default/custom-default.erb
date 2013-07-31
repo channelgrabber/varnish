@@ -21,12 +21,17 @@ INSTANCE=<%= node['varnish']['instance'] %>
 
 # Pass the Daemon options
 
-DAEMON_OPTS="-a <%= node['varnish']['listen_address'] %>:<%= node['varnish']['listen_port'] %> \
+DAEMON_OPTS="-a <%= node['varnish']['ports'].join(","); %> \
               -f <%= node['varnish']['dir'] %>/<%= node['varnish']['vcl_conf'] %> \
               -T <%= node['varnish']['admin_listen_address'] %>:<%= node['varnish']['admin_listen_port'] %> \
               -u <%= node['varnish']['user'] %> -g <%= node['varnish']['group'] %> \
               -t <%= node['varnish']['ttl'] %> \
-              -w <%= node['varnish']['min_threads'] %>,<%= node['varnish']['max_threads'] %>,<%= node['varnish']['thread_timeout'] %> \
               -s <%= node['varnish']['storage'] %>,<%= (node['varnish']['storage']=='file')?"#{node['varnish']['storage_file']},":'' %><%= node['varnish']['storage_size'] %> \
               -S <%= node['varnish']['secret_file'] %> \
+              -p thread_pool_add_delay=2 \
+              -p thread_pools=8 \
+              -p thread_pool_min=<%= node['varnish']['min_threads'] %> \
+              -p thread_pool_max=<%= node['varnish']['max_threads'] %> \
+              -p thread_pool_timeout=<%= node['varnish']['thread_timeout'] %> \
+              -p session_linger=50 \
               -n $INSTANCE"

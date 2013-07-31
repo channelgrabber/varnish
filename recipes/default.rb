@@ -28,7 +28,7 @@ template "#{node['varnish']['dir']}/#{node['varnish']['vcl_conf']}" do
   owner "root"
   group "root"
   mode 0644
-  notifies :restart, "service[varnish]"
+  notifies :reload, "service[varnish]"
 end
 
 template node['varnish']['default'] do
@@ -37,6 +37,48 @@ template node['varnish']['default'] do
   group "root"
   mode 0644
   notifies :restart, "service[varnish]"
+end
+
+directory "#{node['varnish']['error_page_dir']}" do
+  owner "root"
+  group "root"
+  mode 0755
+  action :create
+end
+
+cookbook_file "#{node['varnish']['error_page_dir']}/#{node['varnish']['error_page']}" do
+    source "50x.html"
+    owner "root"
+    group "root"
+    mode 0644
+    action :create
+end
+
+cookbook_file "#{node['varnish']['error_page_dir']}/#{node['varnish']['404_page']}" do
+    source "404.html"
+    owner "root"
+    group "root"
+    mode 0644
+    action :create
+end
+
+if node['hetzner']
+    template "#{node['hetzner']['failover_script']}" do
+        source "heartbeat.erb"
+        owner "root"
+        group "root"
+        mode 0644
+        action :create
+    end
+    cron "heartbeat" do
+      minute "*"
+      hour "*"
+      day "*"
+      month "*"
+      weekday "*"
+      command "php #{node['hetzner']['failover_script']}"
+      action :create
+    end
 end
 
 service "varnish" do
