@@ -51,7 +51,8 @@ sub vcl_recv {
        remove req.http.Cookie;
     }
     if (req.http.host == "www.channelgrabber.com" ||
-        req.http.host == "channelgrabber.com" ) {
+        req.http.host == "channelgrabber.com" ||
+	req.http.host == "images.channelgrabber.com" ) {
         set req.backend = frontRoundRobin;
     } else {
         set req.backend = backendRoundRobin;
