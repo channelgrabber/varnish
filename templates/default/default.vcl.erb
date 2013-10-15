@@ -2,9 +2,9 @@ import std;
 
 probe backendCheck {
     .request = "HEAD <%= node["varnish"]["backend_probe_url"] %> HTTP/1.0";
-    .timeout = 2s;
-    .interval = 2s;
-    .window = 10;
+    .timeout = 100ms;
+    .interval = 1s;
+    .window = 5;
     .threshold = 3;
     .initial = 1;
 }
@@ -73,9 +73,11 @@ sub vcl_deliver {
 }
 
 sub vcl_fetch {
-    if (req.url ~ "\.(png|gif|jpg)$") {
+    if (req.url ~ "\.(png|gif|jpg)$" && beresp.http.Miss-Cache != "1") {
        remove beresp.http.set-cookie;
        set beresp.ttl = 30d;
+    } else {
+        return (hit_for_pass);
     }
 
     if (beresp.status == 404) {
